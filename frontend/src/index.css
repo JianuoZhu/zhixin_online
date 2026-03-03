@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@plugin "flowbite-react/plugin/tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* ── Theme: apply page background from CSS variable ── */
+[data-theme] {
+  --tw-bg-opacity: 1;
+}
+
+/* ── Theme overrides: force Flowbite default buttons to use primary colors ── */
+[data-theme] [class*="bg-cyan-700"] {
+  background-color: var(--color-primary-600) !important;
+}
+[data-theme] [class*="bg-cyan-700"]:hover {
+  background-color: var(--color-primary-700) !important;
+}
+
+/* Focus ring */
+[data-theme] [class*="ring-cyan"] {
+  --tw-ring-color: var(--color-primary-500) !important;
+}
+
+/* ── Fix Flowbite Table cell text visibility ── */
+/* Flowbite-react Table applies dark-mode classes internally. Force visible text. */
+td,
+[data-theme] td,
+table td,
+div td,
+tbody td,
+tr td {
+  color: #1f2937 !important; /* gray-800 */
+}
+
+th,
+[data-theme] th,
+table th,
+div th,
+thead th,
+tr th {
+  color: #6b7280 !important; /* gray-500 */
+}
+
+/* Ensure badges inside tables remain colored properly */
+[data-theme] td [class*="bg-blue"],
+[data-theme] td [class*="bg-cyan"] {
+  color: var(--color-primary-800) !important;
+  background-color: var(--color-primary-100) !important;
+}
+
+/* Force table rows to have white background */
+[data-theme] table tbody tr {
+  background-color: #ffffff !important;
+}
+[data-theme] table tbody tr:nth-child(even) {
+  background-color: #f9fafb !important;
+}
+
+/* Ensure table header row has light bg */
+[data-theme] table thead {
+  background-color: #f9fafb !important;
+}
+
+/* ── Force Flowbite Modals to Center Vertically ── */
+div[data-testid="modal"] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
