@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+import io
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password
@@ -77,3 +79,61 @@ def change_user_role(
     db.commit()
     db.refresh(user)
     return UserOut.model_validate(user)
+
+
+@router.post("/import", dependencies=[Depends(require_roles(["admin"]))])
+def import_users(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only CSV files are supported")
+    
+    content = file.file.read()
+    try:
+        # Decode using utf-8-sig to automatically strip Excel's BOM if present
+        decoded = content.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CSV must be UTF-8 encoded")
+        
+    reader = csv.DictReader(io.StringIO(decoded))
+    
+    # Validation
+    if not reader.fieldnames or "email" not in reader.fieldnames or "password" not in reader.fieldnames:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="CSV header is missing required columns: 'email', 'password'"
+        )
+
+    added_count = 0
+    skipped_count = 0
+    
+    # Load all existing emails to batch validation into sets (optimizing memory load)
+    existing_emails = {email[0] for email in db.query(User.email).all()}
+    
+    for row in reader:
+        email = row.get("email", "").strip()
+        password = row.get("password", "").strip()
+        
+        # Skip blanks or existing elements
+        if not email or not password or email in existing_emails:
+            skipped_count += 1
+            continue
+            
+        role = row.get("role", "member").strip()
+        if role not in {"member", "mentor", "admin"}:
+            role = "member"
+            
+        display_name = row.get("display_name", "").strip()
+        
+        new_user = User(
+            email=email,
+            hashed_password=hash_password(password),
+            role=role,
+            display_name=display_name if display_name else None
+        )
+        db.add(new_user)
+        existing_emails.add(email) # Prevent duplicates across rows within the same spreadsheet
+        added_count += 1
+        
+    db.commit()
+    
+    return {"added": added_count, "skipped": skipped_count}
+

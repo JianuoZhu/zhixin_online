@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Badge,
   Button,
@@ -43,6 +43,9 @@ function Admin() {
   // Create modal visibility
   const [showCreateAnn, setShowCreateAnn] = useState(false);
   const [showCreateEvt, setShowCreateEvt] = useState(false);
+
+  // Hidden File Input Ref 
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   // Edit states
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
@@ -145,6 +148,46 @@ function Admin() {
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role } : u)));
       showToast(t("admin.roleSuccess"));
     } catch (err) { showToast(err instanceof ApiError ? err.message : t("common.error"), "error"); }
+  };
+
+  const handleImportUsers = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!token) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      showToast(t("common.loading"));
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/api/users/import`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.detail || `Error: ${res.status}`);
+      }
+
+      const data = await res.json();
+      const msg = t("admin.importSuccess")
+        .replace("{count}", String(data.added))
+        .replace("{skipped}", String(data.skipped));
+      
+      showToast(msg);
+      
+      // Refresh user list automatically to reflect new batch users
+      const usrs = await apiFetch<UserAdmin[]>("/api/users", { token });
+      setUsers(usrs);
+
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : t("common.error"), "error");
+    } finally {
+      // Clear out input to allow re-uploading the exact same file if necessary
+      if (uploadInputRef.current) uploadInputRef.current.value = "";
+    }
   };
 
   const handleExport = async (type: "registrations" | "checkins", eventId?: number) => {
@@ -348,9 +391,26 @@ function Admin() {
         {/* ────── Users Tab ────── */}
         {activeTab === "usr" && (
           <div className="animate-fade-in">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
-              <HiUsers className="w-5 h-5" />{t("admin.users")}
-            </h3>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
+              <div className="flex flex-col">
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
+                  <HiUsers className="w-5 h-5" />{t("admin.users")}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1 max-w-lg">{t("admin.importFormat")}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  ref={uploadInputRef}
+                  onChange={handleImportUsers}
+                />
+                <Button size="sm" color="light" onClick={() => uploadInputRef.current?.click()}>
+                  <HiDownload className="w-4 h-4 mr-1 rotate-180" />{t("admin.importUsers")}
+                </Button>
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
