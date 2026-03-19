@@ -32,13 +32,14 @@ function Admin() {
   const { showToast } = useToast();
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [pendingEvents, setPendingEvents] = useState<EventItem[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [checkins, setCheckins] = useState<CheckinItem[]>([]);
   const [users, setUsers] = useState<UserAdmin[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<"ann" | "evt" | "usr" | "reg" | "chk">("ann");
+  const [activeTab, setActiveTab] = useState<"ann" | "evt" | "app" | "usr" | "reg" | "chk">("ann");
 
   // Create modal visibility
   const [showCreateAnn, setShowCreateAnn] = useState(false);
@@ -60,15 +61,17 @@ function Admin() {
     if (!token) return;
     const load = async () => {
       try {
-        const [anns, evts, regs, chks, usrs] = await Promise.all([
+        const [anns, evts, pendingEvts, regs, chks, usrs] = await Promise.all([
           apiFetch<AnnouncementItem[]>("/api/announcements", { token }),
           apiFetch<EventItem[]>("/api/events", { token }),
+          apiFetch<EventItem[]>("/api/events/pending", { token }),
           apiFetch<Registration[]>("/api/events/registrations", { token }),
           apiFetch<CheckinItem[]>("/api/checkins", { token }),
           apiFetch<UserAdmin[]>("/api/users", { token }),
         ]);
         setAnnouncements(anns);
         setEvents(evts);
+        setPendingEvents(pendingEvts);
         setRegistrations(regs);
         setCheckins(chks);
         setUsers(usrs);
@@ -138,6 +141,20 @@ function Admin() {
       else setAnnouncements((prev) => prev.filter((a) => a.id !== deleteTarget.id));
       setDeleteTarget(null);
       showToast(t("admin.deleteSuccess"));
+    } catch (err) { showToast(err instanceof ApiError ? err.message : t("common.error"), "error"); }
+  };
+
+  const handleApproveEvent = async (eventId: number, action: "approved" | "rejected") => {
+    if (!token) return;
+    try {
+      const updated = await apiFetch<EventItem>(`/api/events/${eventId}/approve?action=${action}`, {
+        method: "PUT", token,
+      });
+      setPendingEvents((prev) => prev.filter((e) => e.id !== eventId));
+      if (action === "approved") {
+        setEvents((prev) => [...prev, updated].sort((a, b) => a.date.localeCompare(b.date)));
+      }
+      showToast(t("admin.auditSuccess"));
     } catch (err) { showToast(err instanceof ApiError ? err.message : t("common.error"), "error"); }
   };
 
@@ -251,6 +268,7 @@ function Admin() {
           {[
             { id: "ann", label: t("admin.formAnnouncement") },
             { id: "evt", label: t("admin.formEvent") },
+            { id: "app", label: t("admin.approvals") },
             { id: "usr", label: t("admin.users") },
             { id: "reg", label: t("admin.registrations") },
             { id: "chk", label: t("admin.checkins") },
@@ -265,7 +283,7 @@ function Admin() {
                     ? "text-blue-600 dark:text-blue-400"
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:bg-gray-800"
                 }`}
-                onClick={() => setActiveTab(tab.id as "ann" | "evt" | "usr" | "reg" | "chk")}
+                onClick={() => setActiveTab(tab.id as "ann" | "evt" | "app" | "usr" | "reg" | "chk")}
               >
                 {tab.label}
                 {isActive && (
@@ -377,6 +395,58 @@ function Admin() {
                             <Button size="xs" color="failure" onClick={() => setDeleteTarget({ type: "event", id: e.id })} title={t("common.delete")}>
                               <HiTrash className="w-3.5 h-3.5" />
                             </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ────── Approvals Tab ────── */}
+        {activeTab === "app" && (
+          <div className="animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t("admin.approvals")}</h3>
+            </div>
+            {pendingEvents.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">{t("admin.noRecords")}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+                  <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                    <tr>
+                      <th className="px-6 py-3">{t("admin.eventTitle")}</th>
+                      <th className="px-6 py-3">{t("admin.eventDate")}</th>
+                      <th className="px-6 py-3">{t("admin.eventLocation")}</th>
+                      <th className="px-6 py-3">{t("common.actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingEvents.map((e) => (
+                      <tr key={e.id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{e.title}</td>
+                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">{e.date} {e.time}</td>
+                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">{e.location}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleApproveEvent(e.id, "approved")}
+                              style={{ backgroundColor: "#16a34a", color: "#ffffff", padding: "0.25rem 0.5rem", borderRadius: "0.375rem" }}
+                              className="text-xs shadow-sm"
+                            >
+                              {t("admin.approve")}
+                            </button>
+                            <button
+                              onClick={() => handleApproveEvent(e.id, "rejected")}
+                              style={{ backgroundColor: "#ef4444", color: "#ffffff", padding: "0.25rem 0.5rem", borderRadius: "0.375rem" }}
+                              className="text-xs shadow-sm"
+                            >
+                              {t("admin.reject")}
+                            </button>
                           </div>
                         </td>
                       </tr>

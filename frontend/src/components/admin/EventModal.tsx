@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Checkbox, Label, Modal, ModalBody, ModalHeader, Select, TextInput } from "flowbite-react";
+import { Checkbox, Label, Modal, ModalBody, ModalHeader, Select, TextInput, Textarea } from "flowbite-react";
 import { useLocale } from "../../context/LocaleContext";
 import type { EventItem } from "../../types";
 
@@ -17,15 +17,20 @@ export default function EventModal({ show, onClose, onSave, initialData }: Event
 
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  const [startTime, setStartTime] = useState("14:00");
+  const [endTime, setEndTime] = useState("16:00");
   const [location, setLocation] = useState("");
   const [organizer, setOrganizer] = useState("");
   const [category, setCategory] = useState("讲座");
   const [totalSpots, setTotalSpots] = useState(20);
-  const [spotsLeft, setSpotsLeft] = useState(20);
   const [status, setStatus] = useState("open");
   const [recurring, setRecurring] = useState(false);
   const [recurEnd, setRecurEnd] = useState("");
+  const [description, setDescription] = useState("");
+  const [detail, setDetail] = useState("");
+  const [creditCertified, setCreditCertified] = useState(false);
+  const [creditCourse, setCreditCourse] = useState("");
+  const [registrationDeadline, setRegistrationDeadline] = useState("");
 
   // Populate data when modal opens
   useEffect(() => {
@@ -33,27 +38,39 @@ export default function EventModal({ show, onClose, onSave, initialData }: Event
       if (initialData) {
         setTitle(initialData.title);
         setDate(initialData.date);
-        setTime(initialData.time || "");
+        // Parse time "HH:MM-HH:MM" into start/end
+        const timeParts = (initialData.time || "").split("-");
+        setStartTime(timeParts[0]?.trim() || "14:00");
+        setEndTime(timeParts[1]?.trim() || "16:00");
         setLocation(initialData.location);
         setOrganizer(initialData.organizer || "");
         setCategory(initialData.category || "讲座");
         setTotalSpots(initialData.total_spots);
-        setSpotsLeft(initialData.spots_left);
         setStatus(initialData.status);
-        setRecurring(false); // Can't edit recurrence on an existing event easily
+        setRecurring(false);
         setRecurEnd("");
+        setDescription(initialData.description || "");
+        setDetail(initialData.detail || "");
+        setCreditCertified(initialData.credit_certified || false);
+        setCreditCourse(initialData.credit_course || "");
+        setRegistrationDeadline(initialData.registration_deadline?.slice(0, 16) || "");
       } else {
         setTitle("");
         setDate("");
-        setTime("");
+        setStartTime("14:00");
+        setEndTime("16:00");
         setLocation("");
         setOrganizer("");
-        setCategory("Workshop");
+        setCategory("讲座");
         setTotalSpots(20);
-        setSpotsLeft(20);
         setStatus("open");
         setRecurring(false);
         setRecurEnd("");
+        setDescription("");
+        setDetail("");
+        setCreditCertified(false);
+        setCreditCourse("");
+        setRegistrationDeadline("");
       }
     }
   }, [show, initialData]);
@@ -61,8 +78,15 @@ export default function EventModal({ show, onClose, onSave, initialData }: Event
   const handleSave = () => {
     if (!title.trim() || !date) return;
     
+    const time = `${startTime}-${endTime}`;
     const payload: EventFormData = {
-      title, date, time, location, organizer, category, total_spots: totalSpots, spots_left: spotsLeft, status
+      title, date, time, location, organizer, category,
+      total_spots: totalSpots, spots_left: totalSpots, status,
+      description: description || undefined,
+      detail: detail || undefined,
+      credit_certified: creditCertified,
+      credit_course: creditCertified ? creditCourse : undefined,
+      registration_deadline: registrationDeadline || undefined,
     };
     
     if (!initialData && recurring && recurEnd) {
@@ -85,7 +109,7 @@ export default function EventModal({ show, onClose, onSave, initialData }: Event
       <ModalBody>
         <div className="space-y-6">
           <h3 className="text-xl font-medium text-gray-900 dark:text-white">
-            {initialData ? t("common.actions") : t("admin.create")} {t("admin.formEvent")}
+            {initialData ? t("common.edit") : t("admin.create")} {t("admin.formEvent")}
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -99,7 +123,21 @@ export default function EventModal({ show, onClose, onSave, initialData }: Event
             </div>
             <div>
               <div className="mb-2 block"><Label>{t("admin.eventTime")}</Label></div>
-              <TextInput sizing="lg" placeholder="14:00-16:00" value={time} onChange={(e) => setTime(e.target.value)} />
+              <div className="flex items-center gap-2">
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+                <span className="text-gray-500 shrink-0">—</span>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+              </div>
             </div>
             <div className="md:col-span-2">
               <div className="mb-2 block"><Label>{t("admin.eventLocation")}</Label></div>
@@ -133,9 +171,59 @@ export default function EventModal({ show, onClose, onSave, initialData }: Event
             </div>
           </div>
 
+          {/* Description */}
+          <div>
+            <div className="mb-2 block"><Label>{t("admin.eventDescription")}</Label></div>
+            <Textarea
+              rows={2}
+              placeholder={t("admin.eventDescriptionHint")}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          {/* Detail */}
+          <div>
+            <div className="mb-2 block"><Label>{t("admin.eventDetail")}</Label></div>
+            <Textarea
+              rows={4}
+              placeholder={t("admin.eventDetailHint")}
+              value={detail}
+              onChange={(e) => setDetail(e.target.value)}
+            />
+          </div>
+
+          {/* Registration Deadline */}
+          <div>
+            <div className="mb-2 block"><Label>{t("admin.eventDeadline")}</Label></div>
+            <input
+              type="datetime-local"
+              value={registrationDeadline}
+              onChange={(e) => setRegistrationDeadline(e.target.value)}
+              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 mt-1">{t("admin.eventDeadlineHint")}</p>
+          </div>
+
+          {/* Credit Certification */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <div className="flex items-center gap-3 mb-3">
+              <Checkbox id="creditCert" checked={creditCertified} onChange={(e) => setCreditCertified(e.target.checked)} />
+              <Label htmlFor="creditCert" className="text-sm font-medium cursor-pointer">
+                {t("admin.eventCreditCertified")}
+              </Label>
+            </div>
+            {creditCertified && (
+              <div className="ml-7">
+                <div className="mb-2 block"><Label>{t("admin.eventCreditCourse")}</Label></div>
+                <TextInput sizing="lg" placeholder={t("admin.eventCreditCourseHint")} value={creditCourse} onChange={(e) => setCreditCourse(e.target.value)} />
+              </div>
+            )}
+          </div>
+
           {/* Weekly Recurrence (Only on Creation) */}
           {!initialData && (
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-6">
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
               <div className="flex items-center gap-3 mb-3">
                 <Checkbox id="recurring" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
                 <Label htmlFor="recurring" className="text-sm font-medium cursor-pointer">
@@ -159,7 +247,7 @@ export default function EventModal({ show, onClose, onSave, initialData }: Event
               style={{ backgroundColor: "#2563eb", color: "#ffffff", padding: "0.625rem 1rem", borderRadius: "0.5rem", fontWeight: 500 }}
               className="w-full text-sm transition-colors border border-transparent shadow-md hover:bg-blue-700"
             >
-              {t("admin.create")}
+              {initialData ? t("admin.save") : t("admin.create")}
             </button>
           </div>
         </div>

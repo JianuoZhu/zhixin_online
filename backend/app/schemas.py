@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ── User ──────────────────────────────────────────────────────────────
@@ -76,7 +76,13 @@ class EventBase(BaseModel):
     total_spots: int
     image_url: Optional[str] = None
     description: Optional[str] = None
+    detail: Optional[str] = None
     group_id: Optional[str] = None
+    approval_status: str = "approved"
+    creator_id: Optional[int] = None
+    credit_certified: bool = False
+    credit_course: Optional[str] = None
+    registration_deadline: Optional[datetime] = None
 
 
 class EventCreate(EventBase):
@@ -96,6 +102,11 @@ class EventUpdate(BaseModel):
     total_spots: Optional[int] = None
     image_url: Optional[str] = None
     description: Optional[str] = None
+    detail: Optional[str] = None
+    credit_certified: Optional[bool] = None
+    credit_course: Optional[str] = None
+    registration_deadline: Optional[datetime] = None
+    approval_status: Optional[str] = None
 
 
 class EventOut(EventBase):

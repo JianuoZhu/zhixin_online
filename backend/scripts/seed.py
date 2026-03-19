@@ -1,5 +1,10 @@
+import os
+import sys
 from datetime import date, timedelta
 from uuid import uuid4
+
+# Auto-inject the correct module path so the script can be run directly from any directory
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
 from app.core.security import hash_password

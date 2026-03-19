@@ -22,6 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { useLocale } from "../context/LocaleContext";
 import { useToast } from "../context/ToastContext";
 import ConfirmModal from "../components/ConfirmModal";
+import EventModal, { type EventFormData } from "../components/admin/EventModal";
 import type { EventItem, CheckinItem } from "../types";
 
 function Events() {
@@ -38,6 +39,7 @@ function Events() {
   const [showCheckinModal, setShowCheckinModal] = useState(false);
   const [checkinFile, setCheckinFile] = useState<File | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showCreateEvt, setShowCreateEvt] = useState(false);
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }
@@ -138,9 +140,28 @@ function Events() {
   };
 
   const statusBadge = (event: EventItem) => {
+    if (event.approval_status === "pending") return <Badge color="warning">{t("events.statusPending")}</Badge>;
     if (event.status === "closed") return <Badge color="gray">{t("events.statusClosed")}</Badge>;
     if (event.spots_left <= 3) return <Badge color="warning">{t("events.statusFew")}</Badge>;
     return <Badge color="success">{t("events.statusOpenLabel")}</Badge>;
+  };
+
+  const handleCreateEvent = async (data: EventFormData) => {
+    if (!token) return;
+    try {
+      const result = await apiFetch<EventItem | EventItem[]>("/api/events", {
+        method: "POST", token, body: data,
+      });
+      if (Array.isArray(result)) {
+        setEvents((prev) => [...prev, ...result].sort((a, b) => a.date.localeCompare(b.date)));
+      } else {
+        setEvents((prev) => [...prev, result].sort((a, b) => a.date.localeCompare(b.date)));
+      }
+      setShowCreateEvt(false);
+      showToast(t("admin.createSuccess"));
+    } catch (err) { 
+      showToast(err instanceof ApiError ? err.message : t("common.error"), "error"); 
+    }
   };
 
   const modalTheme = {
@@ -153,6 +174,14 @@ function Events() {
     <div className="flex flex-col lg:flex-row gap-6">
       {/* Filters sidebar */}
       <div className="lg:w-64 shrink-0">
+        <button
+          type="button"
+          onClick={() => setShowCreateEvt(true)}
+          style={{ backgroundColor: "#2563eb", color: "#ffffff", padding: "0.75rem 1rem", borderRadius: "0.5rem", fontWeight: 500 }}
+          className="w-full mb-4 shadow-sm hover:bg-blue-700 transition"
+        >
+          {t("events.createEvent")}
+        </button>
         <Card>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t("events.filters")}</h3>
           <div className="space-y-4 mt-2">
@@ -251,8 +280,12 @@ function Events() {
                 className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
                 onClick={() => setSelectedEvent(event)}
               >
-                {event.image_url && (
+                {event.image_url ? (
                   <img src={event.image_url} alt={event.title} className="w-full h-40 object-cover" />
+                ) : (
+                  <div className="w-full h-40 bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+                    <span className="text-white font-bold tracking-wider text-xl">{event.title.slice(0, 2)}</span>
+                  </div>
                 )}
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-2">
@@ -273,8 +306,9 @@ function Events() {
                       <span>{event.spots_left} / {event.total_spots} {t("events.spotsLeft")}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-3">
+                  <div className="flex flex-wrap items-center gap-2 mt-3">
                     <Badge color="purple">{event.category}</Badge>
+                    {event.credit_certified && <Badge color="indigo">{t("events.creditIcon")} {event.credit_course}</Badge>}
                     {event.registered && <Badge color="info">{t("events.registered")}</Badge>}
                     {event.checked_in && <Badge color="success">{t("events.checkInDone")}</Badge>}
                   </div>
@@ -290,13 +324,18 @@ function Events() {
         {selectedEvent && (
           <>
             <ModalHeader>{selectedEvent.title}</ModalHeader>
-            <ModalBody>
-              {selectedEvent.image_url && (
+              <ModalBody>
+              {selectedEvent.image_url ? (
                 <img src={selectedEvent.image_url} alt={selectedEvent.title} className="w-full h-48 object-cover rounded-lg mb-4" />
+              ) : (
+                <div className="w-full h-48 rounded-lg mb-4 bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+                  <span className="text-white font-bold tracking-widest text-3xl">{selectedEvent.title.slice(0, 4)}</span>
+                </div>
               )}
               <div className="flex flex-wrap gap-2 mb-4">
                 {statusBadge(selectedEvent)}
                 <Badge color="purple">{selectedEvent.category}</Badge>
+                {selectedEvent.credit_certified && <Badge color="indigo">{t("events.creditIcon")} {selectedEvent.credit_course}</Badge>}
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm text-gray-600 dark:text-gray-400 mb-4">
                 <div className="flex items-center gap-2"><HiCalendar className="w-4 h-4" />{selectedEvent.date} {selectedEvent.time}</div>
@@ -311,8 +350,12 @@ function Events() {
             </ModalBody>
             <ModalFooter>
               <div className="flex flex-wrap gap-2">
-                {!selectedEvent.registered && selectedEvent.status === "open" && (
-                  <button type="button" onClick={() => handleRegister(selectedEvent.id)} style={{ backgroundColor: "#2563eb", color: "#ffffff", padding: "0.5rem 1rem", borderRadius: "0.5rem", fontWeight: 500 }} className="text-sm shadow-sm hover:bg-blue-700">{t("events.register")}</button>
+                {!selectedEvent.registered && selectedEvent.status === "open" && selectedEvent.approval_status === "approved" && (
+                  (!selectedEvent.registration_deadline || new Date(selectedEvent.registration_deadline) > new Date()) ? (
+                    <button type="button" onClick={() => handleRegister(selectedEvent.id)} style={{ backgroundColor: "#2563eb", color: "#ffffff", padding: "0.5rem 1rem", borderRadius: "0.5rem", fontWeight: 500 }} className="text-sm shadow-sm hover:bg-blue-700">{t("events.register")}</button>
+                  ) : (
+                    <button type="button" disabled style={{ backgroundColor: "#9ca3af", color: "#ffffff", padding: "0.5rem 1rem", borderRadius: "0.5rem", fontWeight: 500, cursor: "not-allowed" }} className="text-sm shadow-sm">{t("events.deadlinePassed")}</button>
+                  )
                 )}
                 {selectedEvent.registered && !selectedEvent.checked_in && (
                   <button type="button" onClick={() => setShowCancelConfirm(true)} style={{ backgroundColor: "#eab308", color: "#ffffff", padding: "0.5rem 1rem", borderRadius: "0.5rem", fontWeight: 500 }} className="text-sm shadow-sm hover:bg-yellow-600">{t("events.cancelReg")}</button>
@@ -364,6 +407,13 @@ function Events() {
         danger
         onConfirm={handleCancelRegistration}
         onCancel={() => setShowCancelConfirm(false)}
+      />
+
+      <EventModal
+        show={showCreateEvt}
+        onClose={() => setShowCreateEvt(false)}
+        onSave={handleCreateEvent}
+        initialData={null}
       />
     </div>
   );

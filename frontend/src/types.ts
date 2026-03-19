@@ -25,7 +25,13 @@ export type EventItem = {
   total_spots: number;
   image_url?: string | null;
   description?: string | null;
+  detail?: string | null;
   group_id?: string | null;
+  approval_status?: string;
+  creator_id?: number | null;
+  credit_certified?: boolean;
+  credit_course?: string | null;
+  registration_deadline?: string | null;
   registered?: boolean;
   checked_in?: boolean;
   can_check_in?: boolean;

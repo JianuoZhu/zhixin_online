@@ -26,6 +26,7 @@ class User(Base):
     mentor_profile = relationship("MentorProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     mentor_assignments = relationship("QaQuestionMentor", back_populates="mentor", cascade="all, delete-orphan")
     answer_votes = relationship("AnswerVote", back_populates="user", cascade="all, delete-orphan")
+    created_events = relationship("Event", back_populates="creator", foreign_keys="Event.creator_id")
 
 
 class Event(Base):
@@ -43,9 +44,16 @@ class Event(Base):
     total_spots = Column(Integer, nullable=False)
     image_url = Column(String(500))
     description = Column(Text)
+    detail = Column(Text)
     group_id = Column(String(50), index=True, nullable=True)
+    approval_status = Column(String(20), nullable=False, default="approved")
+    creator_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    credit_certified = Column(Boolean, nullable=False, default=False)
+    credit_course = Column(String(255), nullable=True)
+    registration_deadline = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    creator = relationship("User", back_populates="created_events", foreign_keys=[creator_id])
     registrations = relationship("EventRegistration", back_populates="event", cascade="all, delete-orphan")
     checkins = relationship("EventCheckin", back_populates="event", cascade="all, delete-orphan")
 

@@ -34,7 +34,12 @@ def _is_checkin_window(event: Event) -> bool:
 
 @router.get("", response_model=list[EventOut])
 def list_events(db: Session = Depends(get_db), current_user=Depends(get_current_user)) -> list[EventOut]:
-    events = db.query(Event).order_by(Event.date.asc()).all()
+    query = db.query(Event)
+    # Non-admin users only see approved events
+    if current_user.role != "admin":
+        query = query.filter(Event.approval_status == "approved")
+    events = query.order_by(Event.date.asc()).all()
+
     registrations = (
         db.query(EventRegistration)
         .filter(EventRegistration.user_id == current_user.id)
@@ -93,13 +98,22 @@ def list_my_events(db: Session = Depends(get_db), current_user=Depends(get_curre
     ]
 
 
-@router.post("", response_model=EventOut | list[EventOut], dependencies=[Depends(require_roles(["admin"]))])
-def create_event(payload: EventCreate, db: Session = Depends(get_db)):
+# ── Pending events for admin review ──────────────────────────────────
+@router.get("/pending", response_model=list[EventOut], dependencies=[Depends(require_roles(["admin"]))])
+def list_pending_events(db: Session = Depends(get_db)) -> list[EventOut]:
+    events = db.query(Event).filter(Event.approval_status == "pending").order_by(Event.created_at.desc()).all()
+    return [EventOut.model_validate(e) for e in events]
+
+
+# ── Create event (all authenticated users) ───────────────────────────
+@router.post("", response_model=EventOut | list[EventOut])
+def create_event(payload: EventCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if payload.spots_left > payload.total_spots:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="spots_left cannot exceed total_spots")
 
-    import copy
-    
+    # Admin-created events are auto-approved; others are pending
+    approval = "approved" if current_user.role == "admin" else "pending"
+
     if payload.is_recurring and payload.recurrence_end_date:
         if payload.recurrence_end_date < payload.date:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="recurrence_end_date must be after start date")
@@ -113,6 +127,8 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
             event_data["date"] = current_date
             event_data["group_id"] = group_id
             event_data["title"] = f"{event_data['title']} (第{idx}期)"
+            event_data["approval_status"] = approval
+            event_data["creator_id"] = current_user.id
             events_to_create.append(Event(**event_data))
             current_date += timedelta(days=7)
             idx += 1
@@ -124,11 +140,27 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
         return [EventOut.model_validate(e) for e in events_to_create]
     else:
         event_data = payload.model_dump(exclude={"is_recurring", "recurrence_end_date"})
+        event_data["approval_status"] = approval
+        event_data["creator_id"] = current_user.id
         event = Event(**event_data)
         db.add(event)
         db.commit()
         db.refresh(event)
         return EventOut.model_validate(event)
+
+
+# ── Approve / reject event (admin only) ──────────────────────────────
+@router.put("/{event_id}/approve", response_model=EventOut, dependencies=[Depends(require_roles(["admin"]))])
+def approve_event(event_id: int, action: str, db: Session = Depends(get_db)) -> EventOut:
+    if action not in ("approved", "rejected"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="action must be 'approved' or 'rejected'")
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    event.approval_status = action
+    db.commit()
+    db.refresh(event)
+    return EventOut.model_validate(event)
 
 
 @router.put("/{event_id}", response_model=EventOut, dependencies=[Depends(require_roles(["admin"]))])
@@ -164,6 +196,10 @@ def register_event(
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    # Check registration deadline
+    if event.registration_deadline and datetime.now(event.registration_deadline.tzinfo) > event.registration_deadline:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Registration deadline has passed")
 
     if event.group_id:
         group_events = db.query(Event).filter(Event.group_id == event.group_id).all()
