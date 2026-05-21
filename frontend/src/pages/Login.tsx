@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Label } from "flowbite-react";
 import { HiMail, HiLockClosed } from "react-icons/hi";
 
-import { ApiError } from "../api/client";
+import { API_BASE, ApiError } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { useLocale } from "../context/LocaleContext";
 
@@ -33,6 +33,10 @@ const Login = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCasLogin = () => {
+    window.location.href = `${API_BASE}/api/auth/cas/login`;
   };
 
   return (
@@ -100,6 +104,20 @@ const Login = () => {
               {submitting ? t("login.submitting") : t("login.submit")}
             </button>
           </form>
+
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+            <span className="text-xs text-gray-500">或</span>
+            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCasLogin}
+            className="w-full rounded-lg border border-blue-200 bg-white px-4 py-3 text-base font-medium text-blue-700 shadow-sm transition hover:bg-blue-50 dark:border-blue-800 dark:bg-gray-900 dark:text-blue-300 dark:hover:bg-gray-800"
+          >
+            使用学校 CAS 登录
+          </button>
         </div>
 
         <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-6">

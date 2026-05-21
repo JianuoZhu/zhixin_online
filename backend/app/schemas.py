@@ -12,6 +12,8 @@ class UserOut(BaseModel):
     role: str
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    sustech_id: Optional[str] = None
+    cas_guid: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -26,6 +28,8 @@ class UserCreate(BaseModel):
     role: str = "member"
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    sustech_id: Optional[str] = None
+    cas_guid: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -45,8 +49,27 @@ class MentorOut(BaseModel):
     title: Optional[str] = None
     bio: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
+    major: Optional[str] = None
+    graduation_year: Optional[int] = None
+    status: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MentorProfileCreate(BaseModel):
+    title: Optional[str] = None
+    bio: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    major: Optional[str] = None
+    graduation_year: Optional[int] = None
+
+
+class MentorProfileUpdate(BaseModel):
+    title: Optional[str] = None
+    bio: Optional[str] = None
+    tags: Optional[List[str]] = None
+    major: Optional[str] = None
+    graduation_year: Optional[int] = None
 
 
 # ── Auth ──────────────────────────────────────────────────────────────
@@ -54,6 +77,13 @@ class MentorOut(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class CasRegisterRequest(BaseModel):
+    registration_token: str
+    email: str
+    display_name: str
+    avatar_url: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -114,6 +144,7 @@ class EventOut(EventBase):
     registered: bool = False
     checked_in: bool = False
     can_check_in: bool = False
+    creator_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

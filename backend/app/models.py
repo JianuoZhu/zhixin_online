@@ -14,6 +14,8 @@ class User(Base):
     role = Column(String(50), nullable=False, default="member")
     display_name = Column(String(255))
     avatar_url = Column(String(500))
+    sustech_id = Column(String(100), unique=True, index=True)
+    cas_guid = Column(String(100), unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     event_registrations = relationship("EventRegistration", back_populates="user", cascade="all, delete-orphan")
@@ -149,6 +151,9 @@ class MentorProfile(Base):
     title = Column(String(255))
     bio = Column(Text)
     tags = Column(JSON, nullable=False, default=list)
+    status = Column(String(20), nullable=False, default="pending")  # pending / approved / rejected
+    major = Column(String(255))
+    graduation_year = Column(Integer)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="mentor_profile")

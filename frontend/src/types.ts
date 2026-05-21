@@ -6,6 +6,8 @@ export type UserInfo = {
   role: string;
   display_name?: string | null;
   avatar_url?: string | null;
+  sustech_id?: string | null;
+  cas_guid?: string | null;
 };
 
 export type UserAdmin = UserInfo & {
@@ -29,6 +31,7 @@ export type EventItem = {
   group_id?: string | null;
   approval_status?: string;
   creator_id?: number | null;
+  creator_name?: string | null;
   credit_certified?: boolean;
   credit_course?: string | null;
   registration_deadline?: string | null;
@@ -95,6 +98,9 @@ export type Mentor = {
   title?: string | null;
   bio?: string | null;
   tags?: string[] | null;
+  major?: string | null;
+  graduation_year?: number | null;
+  status?: string | null;
 };
 
 export type Answer = {

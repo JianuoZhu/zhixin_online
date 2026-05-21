@@ -29,6 +29,8 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> UserOut:
         role=payload.role,
         display_name=payload.display_name,
         avatar_url=payload.avatar_url,
+        sustech_id=payload.sustech_id,
+        cas_guid=payload.cas_guid,
     )
     db.add(user)
     db.commit()
@@ -107,6 +109,8 @@ def import_users(file: UploadFile = File(...), db: Session = Depends(get_db)):
     
     # Load all existing emails to batch validation into sets (optimizing memory load)
     existing_emails = {email[0] for email in db.query(User.email).all()}
+    existing_sustech_ids = {value[0] for value in db.query(User.sustech_id).filter(User.sustech_id.isnot(None)).all()}
+    existing_cas_guids = {value[0] for value in db.query(User.cas_guid).filter(User.cas_guid.isnot(None)).all()}
     
     for row in reader:
         email = row.get("email", "").strip()
@@ -122,18 +126,29 @@ def import_users(file: UploadFile = File(...), db: Session = Depends(get_db)):
             role = "member"
             
         display_name = row.get("display_name", "").strip()
+        sustech_id = row.get("sustech_id", "").strip()
+        cas_guid = row.get("cas_guid", "").strip()
+
+        if (sustech_id and sustech_id in existing_sustech_ids) or (cas_guid and cas_guid in existing_cas_guids):
+            skipped_count += 1
+            continue
         
         new_user = User(
             email=email,
             hashed_password=hash_password(password),
             role=role,
-            display_name=display_name if display_name else None
+            display_name=display_name if display_name else None,
+            sustech_id=sustech_id if sustech_id else None,
+            cas_guid=cas_guid if cas_guid else None,
         )
         db.add(new_user)
         existing_emails.add(email) # Prevent duplicates across rows within the same spreadsheet
+        if sustech_id:
+            existing_sustech_ids.add(sustech_id)
+        if cas_guid:
+            existing_cas_guids.add(cas_guid)
         added_count += 1
         
     db.commit()
     
     return {"added": added_count, "skipped": skipped_count}
-

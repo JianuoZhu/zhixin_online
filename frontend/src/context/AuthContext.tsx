@@ -8,6 +8,8 @@ type User = {
   role: string;
   display_name?: string | null;
   avatar_url?: string | null;
+  sustech_id?: string | null;
+  cas_guid?: string | null;
 };
 
 type AuthContextType = {
@@ -15,6 +17,7 @@ type AuthContextType = {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  completeTokenLogin: (accessToken: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 };
@@ -60,6 +63,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     persist(response.access_token, response.user);
   };
 
+  const completeTokenLogin = async (accessToken: string) => {
+    const nextUser = await apiFetch<User>("/api/auth/me", { token: accessToken });
+    setToken(accessToken);
+    setUser(nextUser);
+    persist(accessToken, nextUser);
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -93,6 +103,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       token,
       loading,
       login,
+      completeTokenLogin,
       logout,
       refresh,
     }),

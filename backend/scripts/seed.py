@@ -88,6 +88,7 @@ def seed() -> None:
                         title=mentor["title"],
                         bio=mentor["bio"],
                         tags=mentor["tags"],
+                        status="approved",
                     )
                 )
 

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Badge,
   Card,
@@ -26,7 +26,7 @@ import EventModal, { type EventFormData } from "../components/admin/EventModal";
 import type { EventItem, CheckinItem } from "../types";
 
 function Events() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useLocale();
   const { showToast } = useToast();
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -40,17 +40,20 @@ function Events() {
   const [checkinFile, setCheckinFile] = useState<File | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showCreateEvt, setShowCreateEvt] = useState(false);
+  const [myCreatedEvents, setMyCreatedEvents] = useState<EventItem[]>([]);
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }
     const load = async () => {
       try {
-        const [eventsData, checkinsData] = await Promise.all([
+        const [eventsData, checkinsData, createdData] = await Promise.all([
           apiFetch<EventItem[]>("/api/events", { token }),
           apiFetch<CheckinItem[]>("/api/checkins/mine", { token }),
+          apiFetch<EventItem[]>("/api/events/mine/created", { token }),
         ]);
         setEvents(eventsData);
         setMyCheckins(checkinsData);
+        setMyCreatedEvents(createdData);
       } finally { setLoading(false); }
     };
     load();
@@ -59,6 +62,14 @@ function Events() {
   const categories = useMemo(() => [...new Set(events.map((e) => e.category))], [events]);
 
   const filteredEvents = useMemo(() => {
+    // When showing "my created" events, use the separate list
+    if (statusFilter === "created") {
+      return myCreatedEvents.filter((e) => {
+        if (searchQuery && !e.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        if (selectedCategories.length > 0 && !selectedCategories.includes(e.category)) return false;
+        return true;
+      });
+    }
     return events.filter((e) => {
       if (searchQuery && !e.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       if (selectedCategories.length > 0 && !selectedCategories.includes(e.category)) return false;
@@ -66,7 +77,7 @@ function Events() {
       if (statusFilter === "mine" && !e.registered) return false;
       return true;
     });
-  }, [events, searchQuery, selectedCategories, statusFilter]);
+  }, [events, myCreatedEvents, searchQuery, selectedCategories, statusFilter]);
 
   const groupedEvents = useMemo(() => {
     const groups = new Map<string, EventItem>();
@@ -140,6 +151,7 @@ function Events() {
   };
 
   const statusBadge = (event: EventItem) => {
+    if (event.approval_status === "rejected") return <Badge color="failure">{t("events.statusRejected")}</Badge>;
     if (event.approval_status === "pending") return <Badge color="warning">{t("events.statusPending")}</Badge>;
     if (event.status === "closed") return <Badge color="gray">{t("events.statusClosed")}</Badge>;
     if (event.spots_left <= 3) return <Badge color="warning">{t("events.statusFew")}</Badge>;
@@ -157,8 +169,15 @@ function Events() {
       } else {
         setEvents((prev) => [...prev, result].sort((a, b) => a.date.localeCompare(b.date)));
       }
+      // Reload created events list
+      const createdData = await apiFetch<EventItem[]>("/api/events/mine/created", { token });
+      setMyCreatedEvents(createdData);
       setShowCreateEvt(false);
-      showToast(t("admin.createSuccess"));
+      if (user?.role === "admin") {
+        showToast(t("admin.createSuccess"));
+      } else {
+        showToast(t("events.pendingHint"));
+      }
     } catch (err) { 
       showToast(err instanceof ApiError ? err.message : t("common.error"), "error"); 
     }
@@ -214,7 +233,7 @@ function Events() {
             <div>
               <Label className="text-xs uppercase tracking-wider text-gray-500">{t("events.status")}</Label>
               <div className="flex flex-col gap-1 mt-1">
-                {(["all", "open", "mine"] as const).map((status) => (
+                {(["all", "open", "mine", "created"] as const).map((status) => (
                   <button
                     key={status}
                     type="button"
@@ -223,7 +242,7 @@ function Events() {
                       statusFilter === status ? "bg-primary-100 text-primary-700 dark:bg-gray-700" : "hover:bg-gray-100 dark:hover:bg-gray-700"
                     }`}
                   >
-                    {t(`events.status${status.charAt(0).toUpperCase() + status.slice(1)}`)}
+                    {status === "created" ? t("events.myCreated") : t(`events.status${status.charAt(0).toUpperCase() + status.slice(1)}`)}
                   </button>
                 ))}
               </div>

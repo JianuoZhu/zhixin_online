@@ -98,11 +98,79 @@ def list_my_events(db: Session = Depends(get_db), current_user=Depends(get_curre
     ]
 
 
+# ── Events created by current user (all statuses) ───────────────────
+@router.get("/mine/created", response_model=list[EventOut])
+def list_my_created_events(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> list[EventOut]:
+    """Return events created by the current user, including pending/rejected ones."""
+    events = (
+        db.query(Event)
+        .filter(Event.creator_id == current_user.id)
+        .order_by(Event.created_at.desc())
+        .all()
+    )
+
+    registrations = (
+        db.query(EventRegistration)
+        .filter(EventRegistration.user_id == current_user.id)
+        .all()
+    )
+    registered_ids = {r.event_id for r in registrations}
+    checkins = (
+        db.query(EventCheckin)
+        .filter(EventCheckin.user_id == current_user.id)
+        .all()
+    )
+    checkin_ids = {c.event_id for c in checkins}
+
+    results: list[EventOut] = []
+    for event in events:
+        event_out = EventOut.model_validate(event)
+        creator_name = current_user.display_name or current_user.email
+        can_check_in = event.id in registered_ids and _is_checkin_window(event)
+        results.append(
+            EventOut(
+                **{
+                    **event_out.model_dump(),
+                    "registered": event.id in registered_ids,
+                    "checked_in": event.id in checkin_ids,
+                    "can_check_in": can_check_in,
+                    "creator_name": creator_name,
+                }
+            )
+        )
+    return results
+
+
 # ── Pending events for admin review ──────────────────────────────────
 @router.get("/pending", response_model=list[EventOut], dependencies=[Depends(require_roles(["admin"]))])
 def list_pending_events(db: Session = Depends(get_db)) -> list[EventOut]:
-    events = db.query(Event).filter(Event.approval_status == "pending").order_by(Event.created_at.desc()).all()
-    return [EventOut.model_validate(e) for e in events]
+    events = (
+        db.query(Event)
+        .filter(Event.approval_status == "pending")
+        .order_by(Event.created_at.desc())
+        .all()
+    )
+
+    # Batch-load creator info
+    creator_ids = {e.creator_id for e in events if e.creator_id}
+    creators = {}
+    if creator_ids:
+        creator_users = db.query(User).filter(User.id.in_(creator_ids)).all()
+        creators = {u.id: u for u in creator_users}
+
+    results: list[EventOut] = []
+    for e in events:
+        event_out = EventOut.model_validate(e)
+        creator = creators.get(e.creator_id) if e.creator_id else None
+        creator_name = (creator.display_name or creator.email) if creator else None
+        results.append(
+            EventOut(**{**event_out.model_dump(), "creator_name": creator_name})
+        )
+    return results
+
 
 
 # ── Create event (all authenticated users) ───────────────────────────

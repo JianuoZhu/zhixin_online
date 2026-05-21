@@ -20,6 +20,9 @@ def _mentor_out(user: User, profile: MentorProfile | None) -> MentorOut:
         title=profile.title if profile else None,
         bio=profile.bio if profile else None,
         tags=profile.tags if profile else [],
+        major=profile.major if profile else None,
+        graduation_year=profile.graduation_year if profile else None,
+        status=profile.status if profile else None,
     )
 
 

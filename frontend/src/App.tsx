@@ -7,6 +7,7 @@ import { useAuth } from "./context/AuthContext";
 
 import Admin from "./pages/Admin";
 import Announcements from "./pages/Announcements";
+import CasCallback from "./pages/CasCallback";
 import Dashboard from "./pages/Dashboard";
 import Events from "./pages/Events";
 import Login from "./pages/Login";
@@ -51,6 +52,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/cas/callback" element={<CasCallback />} />
       <Route path="/*" element={<ProtectedLayout />} />
     </Routes>
   );

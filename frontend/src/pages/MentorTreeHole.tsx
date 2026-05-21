@@ -258,13 +258,18 @@ function MentorTreeHole() {
           ) : (
             <div className="space-y-4 mt-2">
               {mentors.map((m) => (
-                <div key={m.id} className="flex items-start gap-3">
+                <div key={m.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center text-white text-sm font-bold shrink-0">
                     {m.display_name.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-900 dark:text-white">{m.display_name}</p>
                     {m.title && <p className="text-xs text-gray-500">{m.title}</p>}
+                    {(m.major || m.graduation_year) && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {m.major}{m.major && m.graduation_year ? " · " : ""}{m.graduation_year ? `${m.graduation_year}届` : ""}
+                      </p>
+                    )}
                     {m.bio && <p className="text-xs text-gray-400 mt-1 line-clamp-2">{m.bio}</p>}
                     {m.tags && m.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
