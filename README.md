@@ -29,3 +29,6 @@ Use Docker for PostgreSQL:
 ```bash
 docker-compose up -d
 ```
+
+## Production Deployment
+See [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for the Ubuntu + PostgreSQL + Nginx + systemd deployment flow.
