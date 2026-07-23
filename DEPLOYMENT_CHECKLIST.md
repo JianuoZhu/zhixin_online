@@ -7,18 +7,46 @@
 - 前端：Nginx 直接托管 `frontend/dist`
 - 后端：FastAPI 监听 `127.0.0.1:8000`，由 Nginx 反向代理 `/api/` 和 `/uploads/`
 - 数据库：PostgreSQL
-- 域名示例：`https://zhixin.example.edu.cn`
+- 正式域名：`https://zhixinc.org`
+- 当前服务器公网 IP：`47.115.169.85`
 
 ## 0. 部署前准备
 
 请先准备好：
 
-- 服务器公网 IP、SSH 账号、仓库地址。
-- 已解析到服务器的正式域名，例如 `zhixin.example.edu.cn`。
+- 服务器公网 IP：`47.115.169.85`。
+- SSH 账号、仓库地址。
+- 正式域名：`zhixinc.org`。当前还没有配置 DNS，需要先在域名服务商处添加 A 记录。
 - PostgreSQL 数据库密码。
 - 后端 `SECRET_KEY`，可用 `openssl rand -hex 32` 生成。
 - 管理员初始邮箱和密码。
-- CAS 申请信息：回调地址为 `https://<你的域名>/api/auth/cas/callback`。
+- CAS 申请信息：回调地址为 `https://zhixinc.org/api/auth/cas/callback`。
+
+## 0.1 配置 DNS
+
+当前 `zhixinc.org` 还没有解析到服务器。请先在域名服务商控制台添加：
+
+```text
+主机记录    类型    记录值
+@           A       47.115.169.85
+www         A       47.115.169.85
+```
+
+`www` 不是必须项，但建议一并配置。DNS 生效前可以先用 `http://47.115.169.85` 临时测试 Nginx 和后端接口；正式 HTTPS 证书、CAS 回调地址和生产环境变量都应使用 `https://zhixinc.org`，不要使用 IP。
+
+如果你需要在 DNS 生效前先用 IP 完整测试前端调用 API，可临时把真实 `.env` 改成：
+
+```env
+# backend/.env 临时测试值
+ALLOWED_ORIGINS=http://47.115.169.85
+FRONTEND_URL=http://47.115.169.85
+API_PUBLIC_BASE_URL=http://47.115.169.85
+
+# frontend/.env 临时测试值
+VITE_API_BASE_URL=http://47.115.169.85
+```
+
+然后重新运行 `sudo -u zhixin bash scripts/deploy.sh` 并重启后端。DNS 生效、HTTPS 证书签发后，再改回 `https://zhixinc.org` 并重新构建前端。CAS 登录不要用 IP 测试。
 
 ## 1. 安装系统依赖
 
@@ -100,10 +128,10 @@ sudo -u zhixin cp frontend/.env.example frontend/.env
 ```env
 DATABASE_URL=postgresql+psycopg2://zhixin:CHANGE_ME_DB_PASSWORD@127.0.0.1:5432/zhixin
 SECRET_KEY=CHANGE_ME_GENERATE_WITH_OPENSSL_RAND_HEX_32
-ALLOWED_ORIGINS=https://zhixin.example.edu.cn
-FRONTEND_URL=https://zhixin.example.edu.cn
-API_PUBLIC_BASE_URL=https://zhixin.example.edu.cn
-CAS_SERVICE_URL=https://zhixin.example.edu.cn/api/auth/cas/callback
+ALLOWED_ORIGINS=https://zhixinc.org
+FRONTEND_URL=https://zhixinc.org
+API_PUBLIC_BASE_URL=https://zhixinc.org
+CAS_SERVICE_URL=https://zhixinc.org/api/auth/cas/callback
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=CHANGE_ME_BOOTSTRAP_ADMIN_PASSWORD
 ```
@@ -111,7 +139,7 @@ ADMIN_PASSWORD=CHANGE_ME_BOOTSTRAP_ADMIN_PASSWORD
 编辑 `frontend/.env`：
 
 ```env
-VITE_API_BASE_URL=https://zhixin.example.edu.cn
+VITE_API_BASE_URL=https://zhixinc.org
 ```
 
 如果前后端使用不同域名：
@@ -131,6 +159,8 @@ VITE_API_BASE_URL=https://zhixin.example.edu.cn
 - 创建管理员账号
 - 执行 `npm ci`
 - 构建 `frontend/dist`
+
+脚本只会检查并读取第 4 步填写好的 `backend/.env` 和 `frontend/.env`，不会创建、修改或覆盖这两个真实环境配置文件。
 
 运行：
 
@@ -182,7 +212,7 @@ sudo journalctl -u zhixin-api -f
 仓库已新增模板：`deploy/nginx/zhixin.conf`。先把其中的 `server_name` 替换成你的域名：
 
 ```nginx
-server_name zhixin.example.edu.cn;
+server_name zhixinc.org www.zhixinc.org 47.115.169.85;
 ```
 
 安装配置：
@@ -208,21 +238,29 @@ CAS 要求正式环境使用 HTTPS。使用 Certbot 时：
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d zhixin.example.edu.cn
+sudo certbot --nginx -d zhixinc.org
 sudo systemctl reload nginx
 ```
 
+如果 `www.zhixinc.org` 也已经配置 DNS，并且你希望它也支持 HTTPS，可以改为：
+
+```bash
+sudo certbot --nginx -d zhixinc.org -d www.zhixinc.org
+```
+
+DNS 未生效前请先跳过 Certbot，等 `zhixinc.org` 解析到 `47.115.169.85` 后再签发证书。
+
 证书签发后，请确认：
 
-- `https://zhixin.example.edu.cn` 可以打开前端。
-- `https://zhixin.example.edu.cn/api/health` 返回 `{"status":"ok"}`。
+- `https://zhixinc.org` 可以打开前端。
+- `https://zhixinc.org/api/health` 返回 `{"status":"ok"}`。
 
 ## 9. CAS 配置与验收
 
 给 CAS 管理方的生产地址：
 
-- 应用回调 URI：`https://zhixin.example.edu.cn/api/auth/cas/callback`
-- SLO URL：`https://zhixin.example.edu.cn/api/auth/cas/logout`
+- 应用回调 URI：`https://zhixinc.org/api/auth/cas/callback`
+- SLO URL：`https://zhixinc.org/api/auth/cas/logout`
 - 登录地址：`https://cas.sustech.edu.cn/cas/login`
 - 登出地址：`https://cas.sustech.edu.cn/cas/logout`
 - 校验地址：`https://cas.sustech.edu.cn/cas/serviceValidate`
@@ -247,12 +285,12 @@ sudo -u zhixin .venv/bin/python scripts/import_cas_ids.py /path/to/users.csv
 仓库已新增 `scripts/smoke-test.sh`：
 
 ```bash
-API_URL=https://zhixin.example.edu.cn FRONTEND_URL=https://zhixin.example.edu.cn bash scripts/smoke-test.sh
+API_URL=https://zhixinc.org FRONTEND_URL=https://zhixinc.org bash scripts/smoke-test.sh
 ```
 
 手动检查：
 
-- `https://zhixin.example.edu.cn/api/health`
+- `https://zhixinc.org/api/health`
 - 前端登录页
 - 管理员账号密码登录
 - CAS 登录按钮
